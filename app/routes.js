@@ -37,27 +37,66 @@ var upload = multer({storage: storage});
         })
       })
   });
-  //post page
-  app.get('/post/:zebra', isLoggedIn, function(req, res) {
-    let postId = ObjectId(req.params.zebra)
-    console.log(postId)
-    db.collection('posts').find({_id: postId}).toArray((err, result) => {
-      if (err) return console.log(err)
-      res.render('post.ejs', {
-        posts: result
+
+//get post-page & comments
+
+app.get('/post/:id', isLoggedIn, function (req, res) {
+  let postId = ObjectId(req.params.id)
+  db.collection('posts').find({_id: postId}).toArray((err, result) => {
+      db.collection('comments').find({
+         postId: req.params.id
+      }).toArray((err, allComments) => {
+          // console.log(mainResult);
+          if (err) return console.log(err)
+          res.render('post.ejs', {
+            user : req.user,
+            posts: result[0],
+            comments: allComments
+          })
       })
-    })
+  })
 });
+
 //profile page
 app.get('/page/:id', isLoggedIn, function(req, res) {
   let postId = ObjectId(req.params.id)
   db.collection('posts').find({postedBy: postId}).toArray((err, result) => {
     if (err) return console.log(err)
     res.render('page.ejs', {
+      user : req.user,
       posts: result
     })
   })
 });
+
+
+//thumb up thumb down
+app.put('/thumbUp', (req, res) => {
+  db.collection('posts')
+  .findOneAndUpdate({_id:ObjectId(req.body.id)}, {
+    $set: {
+      thumbUp:req.body.thumbUp + 1
+    }
+  }, {
+    sort: {_id: -1},
+    upsert: true
+  }, (err, result) => {
+    if (err) return res.send(err)
+    res.send(result)
+  })
+})
+
+//get comments
+// app.get('/page/:id', isLoggedIn, function(req, res) {
+//   let postId = ObjectId(req.params.id)
+//   db.collection('posts').find({postedBy: postId}).toArray((err, result) => {
+//     if (err) return console.log(err)
+//     res.render('page.ejs', {
+//       posts: result
+//     })
+//   })
+// });
+
 
     // LOGOUT ==============================
     app.get('/logout', function(req, res) {
@@ -67,12 +106,24 @@ app.get('/page/:id', isLoggedIn, function(req, res) {
 // post routes
 app.post('/makePost', upload.single('file-to-upload'), (req, res) => {
   let user = req.user._id
-  db.collection('posts').save({caption: req.body.caption, img: 'images/uploads/' + req.file.filename, postedBy: user}, (err, result) => {
+  db.collection('posts').save({caption: req.body.caption, img: 'images/uploads/' + req.file.filename, postedBy: user, thumbUp:0}, (err, result) => {
     if (err) return console.log(err)
     console.log('saved to database')
     res.redirect('/profile')
   })
+});
+
+// comments routes
+app.post('/makeComment/:id', (req, res) => {
+  let user = req.user._id
+  db.collection('comments').save({comment: req.body.comment, postedBy: user, postId: req.params.id}, (err, result) => {
+    if (err) return console.log(err)
+    console.log('saved to database')
+    res.redirect(`/post/${req.params.id}`)
+  })
 })
+
+
 
 
 // message board routes ===============================================================
